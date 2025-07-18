@@ -60,6 +60,7 @@ GST_DEBUG_CATEGORY_STATIC (gst_hls_sink2_debug);
 #define DEFAULT_PLAYLIST_ROOT NULL
 #define DEFAULT_MAX_FILES 10
 #define DEFAULT_TARGET_DURATION 15
+#define DEFAULT_TARGET_DIRECTORY "./"
 #define DEFAULT_PLAYLIST_LENGTH 5
 #define DEFAULT_SEND_KEYFRAME_REQUESTS TRUE
 
@@ -75,6 +76,8 @@ enum
   PROP_TARGET_DURATION,
   PROP_PLAYLIST_LENGTH,
   PROP_SEND_KEYFRAME_REQUESTS,
+  PROP_SERIAL_NUMBER,
+  PROP_TARGET_DIRECTORY
 };
 
 enum
@@ -115,6 +118,7 @@ gst_hls_sink2_change_state (GstElement * element, GstStateChange trans);
 static GstPad *gst_hls_sink2_request_new_pad (GstElement * element,
     GstPadTemplate * templ, const gchar * name, const GstCaps * caps);
 static void gst_hls_sink2_release_pad (GstElement * element, GstPad * pad);
+static gchar *generate_custom_location (const gchar *serial_number, const gchar *target_directory, const gint target_duration);
 
 static void
 gst_hls_sink2_dispose (GObject * object)
@@ -256,6 +260,14 @@ gst_hls_sink2_class_init (GstHlsSink2Class * klass)
           "then the input must have keyframes in regular intervals",
           DEFAULT_SEND_KEYFRAME_REQUESTS,
           G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS));
+  g_object_class_install_property (gobject_class, PROP_SERIAL_NUMBER,
+    g_param_spec_string ("serial-number", "Serial Number",
+        "Serial number to use in file naming", NULL,
+        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_CONSTRUCT));
+  g_object_class_install_property (gobject_class, PROP_TARGET_DIRECTORY,
+    g_param_spec_string ("target-directory", "Target directory",
+        "Target directory for save files", NULL,
+        G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS | G_PARAM_CONSTRUCT));
 
   /**
    * GstHlsSink2::get-playlist-stream:
@@ -313,7 +325,7 @@ on_format_location (GstElement * splitmuxsink, guint fragment_id,
   GOutputStream *stream = NULL;
   gchar *location;
 
-  location = g_strdup_printf (sink->location, fragment_id);
+  location = generate_custom_location(sink->serial_number, sink->target_directory, sink->target_duration);
   g_signal_emit (sink, signals[SIGNAL_GET_FRAGMENT_STREAM], 0, location,
       &stream);
 
@@ -341,11 +353,13 @@ gst_hls_sink2_init (GstHlsSink2 * sink)
 {
   GstElement *mux;
 
+  sink->serial_number = NULL;
   sink->location = g_strdup (DEFAULT_LOCATION);
   sink->playlist_location = g_strdup (DEFAULT_PLAYLIST_LOCATION);
   sink->playlist_root = g_strdup (DEFAULT_PLAYLIST_ROOT);
   sink->playlist_length = DEFAULT_PLAYLIST_LENGTH;
   sink->max_files = DEFAULT_MAX_FILES;
+  sink->target_directory = g_strdup(DEFAULT_TARGET_DIRECTORY);
   sink->target_duration = DEFAULT_TARGET_DURATION;
   sink->send_keyframe_requests = DEFAULT_SEND_KEYFRAME_REQUESTS;
   g_queue_init (&sink->old_locations);
@@ -581,6 +595,12 @@ gst_hls_sink2_change_state (GstElement * element, GstStateChange trans)
       if (!sink->splitmuxsink) {
         return GST_STATE_CHANGE_FAILURE;
       }
+      if (sink->serial_number) {
+        gchar *new_location = generate_custom_location (sink->serial_number, sink->target_directory, sink->target_duration);
+        g_free (sink->location);
+        sink->location = new_location;
+        g_object_set (sink->splitmuxsink, "location", sink->location, NULL);
+      }
       break;
     default:
       break;
@@ -651,6 +671,14 @@ gst_hls_sink2_set_property (GObject * object, guint prop_id,
             sink->send_keyframe_requests, NULL);
       }
       break;
+    case PROP_SERIAL_NUMBER:
+      g_free (sink->serial_number);
+      sink->serial_number = g_value_dup_string (value);
+      break;
+    case PROP_TARGET_DIRECTORY:
+      g_free (sink->target_directory);
+      sink->target_directory = g_value_dup_string (value);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
@@ -685,8 +713,32 @@ gst_hls_sink2_get_property (GObject * object, guint prop_id,
     case PROP_SEND_KEYFRAME_REQUESTS:
       g_value_set_boolean (value, sink->send_keyframe_requests);
       break;
+    case PROP_SERIAL_NUMBER:
+      g_value_set_string (value, sink->serial_number);
+      break;
+    case PROP_TARGET_DIRECTORY:
+      g_value_set_string (value, sink->target_directory);
+      break;
     default:
       G_OBJECT_WARN_INVALID_PROPERTY_ID (object, prop_id, pspec);
       break;
   }
+}
+
+static gchar *
+generate_custom_location (const gchar *serial_number, const gchar *target_directory, const gint target_duration)
+{
+  GDateTime *now = g_date_time_new_now_local();
+  gchar *time_str = g_date_time_format (now, "%H_%M_%S");
+  gchar *file_name = g_strdup_printf ("%s_%d_%s.ts", time_str, target_duration ,serial_number);
+
+  if (!target_directory)
+    target_directory = DEFAULT_TARGET_DIRECTORY;
+  gchar *full_path = g_build_path (G_DIR_SEPARATOR_S, target_directory, file_name, NULL);
+
+  g_free (time_str);
+  g_free (file_name);
+  g_date_time_unref (now);
+
+  return full_path;
 }

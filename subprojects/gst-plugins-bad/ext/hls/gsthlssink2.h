@@ -43,6 +43,8 @@ struct _GstHlsSink2
   GstPad *audio_sink, *video_sink;
   GstElement *giostreamsink;
 
+  gchar *target_directory;
+  gchar *serial_number;
   gchar *location;
   gchar *playlist_location;
   gchar *playlist_root;

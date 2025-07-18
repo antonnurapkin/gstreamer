@@ -1,0 +1,23 @@
+version = 1
+revision = 1
+requires-python = ">=3.12"
+
+[[package]]
+name = "gstreamer"
+version = "0.1.0"
+source = { virtual = "." }
+dependencies = [
+    { name = "meson" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "meson", specifier = ">=1.8.2" }]
+
+[[package]]
+name = "meson"
+version = "1.8.2"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/72/58/fedcfbc958585381281f72b4866288f04c3f109a6a8757e0a529af8aaa79/meson-1.8.2.tar.gz", hash = "sha256:c105816d8158c76b72adcb9ff60297719096da7d07f6b1f000fd8c013cd387af", size = 2335538 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/8e/6e/b9dfeac98dd508f88bcaff134ee0bf5e602caf3ccb5a12b5dd9466206df1/meson-1.8.2-py3-none-any.whl", hash = "sha256:274b49dbe26e00c9a591442dd30f4ae9da8ce11ce53d0f4682cd10a45d50f6fd", size = 1013517 },
+]
